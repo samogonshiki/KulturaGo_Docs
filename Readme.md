@@ -157,9 +157,9 @@ graph TD
 | Q4      | marketing-service, офлайн-режим мобильного клиента |
 
 
-### Потоки данных и основные сценарии
+## Потоки данных и основные сценарии
 
-#### Auth-service endpoints
+### Auth-service endpoints
 
 | HTTP  | Путь                           | Описание                                        | Токен      |
 |-------|--------------------------------|-------------------------------------------------|------------|
@@ -202,7 +202,7 @@ graph TD
 objectKey = sha256(email + “:” + login + “:” + unixNano()) + “.jpg”
 ```
 
-##### Загрузка аватара
+#### Загрузка аватара
 
 ```mermaid
 sequenceDiagram
@@ -237,7 +237,7 @@ sequenceDiagram
     G->>UI: 200 OK
 ```
 
-##### Как работает сам сервис
+#### Как работает сам сервис
 
 ```mermaid
 sequenceDiagram
@@ -279,3 +279,232 @@ sequenceDiagram
     G->>Admin: OK
 ```
 
+### ticketing-service
+
+Бронирование мест, оформление заказов, получение билетов.
+
+### Endpoints
+
+| HTTP | Путь                                 | Описание                         |
+|------|--------------------------------------|----------------------------------|
+| POST | `/api/v1/tickets/purchase`           | Создать заказ, резерв мест       |
+| GET  | `/api/v1/tickets/{id}`               | Детали заказа / билета           |
+| GET  | `/api/v1/tickets/{id}/qr`            | Скачать QR-код                   |
+| POST | `/api/v1/tickets/cancel`             | Отменить заказ (если не оплачен) |
+| POST | `/internal/tickets/callback`         | Webhook платёжного провайдера    |
+
+### Request-flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U   as User
+    participant G   as NGINX
+    participant T   as ticketing-service
+    participant P   as Provider
+    participant Pay as payment-service
+    participant K   as Kafka
+
+    U->>G: POST /tickets/purchase
+    G->>T: Purchase()
+    T->>P: reserveSeat()
+    P-->>T: seatId
+    T->>Pay: initPayment(orderId)
+    Pay-->>U: redirect to PSP
+    Pay->>T: webhook ✓
+    T->>K: ticket.paid
+```
+
+## Gid-service
+
+
+| HTTP | Путь                 | Описание              |
+|------|----------------------|-----------------------|
+| POST | `internal/tts/speak` | Генерировать TTS-файл |
+| WS   | `/ws/tour/{tourId}`  | Live-стрим экскурсии  |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App  as App
+    participant G    as NGINX
+    participant Gid  as gid-service
+    participant R    as Redis
+    participant S3   as S3
+
+    App->>G: GET /ws/tour/42
+    G->>Gid: WebSocket upgrade
+    Gid->>R: XADD tts_jobs
+    R-->>Gid: job pop
+    Gid->>S3: PUT tts.mp3
+    Gid-->>App: binary audio
+```
+
+
+## Notification-service
+
+| HTTP | Путь       | Описание             |
+|------|------------|----------------------|
+| gRPC | `Notify()` | Внутренний вызов     |
+| GET  | `/healthz` | readiness / liveness |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant K as Kafka
+    participant N as notification-service
+    participant F as FCM
+    participant M as SMTP
+
+    K->>N: ticket.paid
+    alt push
+        N->>F: send()
+    else email
+        N->>M: send()
+    end
+```
+
+## Search-service
+
+| HTTP | Путь             | Описание                          |
+|------|------------------|-----------------------------------|
+| GET  | `/api/v1/search` | Поиск: q, filters, page, per_page |
+
+```mermaid
+graph LR
+    Kafka-->|event.published| Indexer
+    Indexer-->Meili[(Meilisearch)]
+    User-->NGINX-->S(Search-service)
+    S-->Meili
+```
+
+# Recommendation-service
+
+| HTTP | Путь                                      | Описание                 |
+|------|-------------------------------------------|--------------------------|
+| GET  | `/api/v1/recommendations`                 | Топ-N рекомендаций (uid) |
+| GET  | `/api/v1/recommendations/similar/{event}` | Похожие события          |
+
+```mermaid
+stateDiagram-v2
+    [*] --> ColdStart
+    ColdStart --> Online : user.action
+    Online --> Nightly : cron 03:00
+    Nightly --> Online : model_retrain
+```
+
+## Geo-service
+
+| HTTP | Путь                 | Описание                    |
+|------|----------------------|-----------------------------|
+| GET  | `/api/v1/geo/nearby` | POI рядом (lat,lon,radius)  |
+| GET  | `/api/v1/geo/eta`    | ETA между точками (from,to) |
+
+```mermaid
+graph TB
+    U(User)-->N(NGINX)-->G(geo-service)
+    G-->PG[PostGIS]
+    G-->R[Redis Geo-cache]
+```
+
+## Payment-service
+
+| HTTP | Путь                                   | Описание                             |
+|------|----------------------------------------|--------------------------------------|
+| POST | `/internal/pay`                        | Создать платёж (ticketing → payment) |
+| POST | `/api/v1/payments/callback/{provider}` | Webhook от платёжного провайдера     |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    Ticket->>Pay: /internal/pay
+    Pay->>Provider: createPayment()
+    Provider-->>User: redirect
+    Provider->>Pay: webhook status=success
+    Pay->>Kafka: payment.succeeded
+```
+
+## Ugc-service
+
+Отзывы, оценки и пользовательские фотографии.
+
+| HTTP   | Путь                     | Описание                                    |
+|--------|--------------------------|---------------------------------------------|
+| POST   | /api/v1/reviews          | Создать отзыв или оценку                    |
+| GET    | /api/v1/reviews          | Список отзывов (`event`, `page`)            |
+| DELETE | /api/v1/reviews/{id}     | Удалить собственный отзыв                   |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant NGINX
+    participant UGC
+    participant Vision
+    participant DB
+    participant Kafka
+
+    User->>NGINX: POST /reviews
+    NGINX->>UGC: CreateReview()
+    UGC->>Vision: SafeSearch(img)
+    alt Accept
+        UGC->>DB: INSERT review
+        UGC->>Kafka: ugc.created
+        UGC-->>User: 201 Created
+    else Reject
+        UGC-->>User: 422 Unacceptable image
+    endне
+```
+
+## Gamification-service
+
+XP-система, уровни, бейджи и лидерборды.
+
+| HTTP | Путь                  | Описание                    |
+|------|-----------------------|-----------------------------|
+| GET  | `/api/v1/xp`          | Текущие XP и уровень игрока |
+| GET  | `/api/v1/leaderboard` | ТОП-N пользователей         |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Kafka        as Kafka
+    participant Game         as gamification-service
+    participant Redis        as Redis
+    participant Notif        as notification-service
+
+    Kafka-->>Game: user.action
+    Game->>Redis: ZINCRBY xp:{uid}
+    alt Level up
+        Game->>Kafka: badge.earned
+        Kafka-->>Notif: badge.earned
+    end
+```
+
+
+## Marketing-service
+
+Сервис отвечает за создание A/B-экспериментов, сегментацию аудиторий и запуск триггерных push-кампаний.
+
+| HTTP | Путь                      | Описание                             |
+|------|---------------------------|--------------------------------------|
+| POST | `/admin/campaigns`        | Создать или запустить кампанию       |
+| GET  | `/admin/campaigns/{id}`   | Получить статус кампании             |
+| GET  | `/admin/experiments/{id}` | Статус A/B-эксперимента              |
+| POST | `/admin/segments`         | Создать сегмент пользователей        |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Admin
+    participant MS    as marketing-service
+    participant DB
+    participant Kafka
+    participant Notif as notification-service
+
+    Admin->>MS: POST /admin/campaigns
+    MS->>DB: INSERT campaign
+    Kafka-->>MS: event.published
+    MS->>Kafka: campaign.trigger
+    Kafka-->>Notif: campaign.trigger
+```
