@@ -1,6 +1,3 @@
-# Высокоуровневая архитектура
-
-
 # KulturaGo — твой персональный гид в мире культуры ✨
 
 ## Оглавление
@@ -161,3 +158,57 @@ graph TD
 
 
 ### Потоки данных и основные сценарии
+
+#### Auth-service endpoints
+
+| HTTP  | Путь                           | Описание                                        | Токен      |
+|-------|--------------------------------|-------------------------------------------------|------------|
+| POST  | /api/v1/auth/signup            | Регистрация нового пользователя                 | —          |
+| POST  | /api/v1/auth/signin            | Логин, выдача access + refresh                  | —          |
+| POST  | /api/v1/auth/refresh           | Обновление access-токена по refresh             | refresh    |
+| POST  | /api/v1/auth/logout            | Инвалидация пары токенов                        | access     |
+| GET   | /api/v1/me                     | Короткая карточка «Я»                           | access     |
+| GET   | /api/v1/profile                | Полный профиль                                  | access     |
+| PUT   | /api/v1/profile                | Сохранение профиля                              | access     |
+| GET   | /api/v1/avatar/presign         | Presigned-URL для загрузки аватара в S3         | access     |
+
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as NGINX
+    participant A as auth-service
+    participant R as Redis
+    participant P as PostgreSQL
+    Note over C: POST /auth/signin
+    C->>G: credentials
+    G->>A: SignIn()
+    A->>P: verify user
+    A->>R: SET session (TTL 15m)
+    A->>G: access + refresh
+    G->>C: 200 OK
+```
+
+#### Event-service endpoints
+
+| HTTP  | Путь                     | Описание                                          | Доступ                |
+|-------|--------------------------|---------------------------------------------------|-----------------------|
+| GET   | /api/v1/events           | Список активных событий                           | Публичный             |
+| GET   | /api/v1/events/{slug}    | Детальная карточка события                        | Публичный             |
+| POST  | /api/v1/events           | Создать / обновить событие (админ-панель)         | VPN + JWT «admin»     |
+
+```mermaid
+sequenceDiagram
+    participant Admin as Admin-UI
+    participant G as NGINX
+    participant E as event-service
+    participant P as PostgreSQL
+    participant K as Kafka
+    Note over Admin: POST /events
+    Admin->>G: JSON event
+    G->>E: Create()
+    E->>P: INSERT event
+    E->>K: event.published
+    E->>G: 201 Created
+    G->>Admin: OK
+```
