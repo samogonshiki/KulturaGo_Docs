@@ -1,93 +1,69 @@
 # Высокоуровневая архитектура
 
 ```mermaid
-%% KulturaGo — high-level deployment
 flowchart LR
-  subgraph Client Tier
-    A[Mobile / Web<br>React + Flutter] -->|HTTPS| G(NGINX (API Gateway))
-  end
+    client[Mobile / Web<br/>React · Flutter]
+    gateway[NGINX<br/>(API Gateway)]
 
-  subgraph Observability
-    P[Prometheus] -.-> Gf[Grafana]
-  end
+    client -- HTTPS --> gateway
 
-  Gf --- G          %% чтобы показать связь мониторинга с шлюзом
+    prom[Prometheus]
+    graf[Grafana]
 
-  subgraph Kubernetes Cluster
-    direction TB
-    G -->|gRPC&nbsp;/&nbsp;REST| Auth[auth-service]
-    G --> Ticket[ticketing-service]
-    G --> Event[event-service]
-    G --> Notify[notification-service]
-    G --> Gid[gid-service]
-    G --> Search[search-service]
-    G --> Rec[recommendation-service]
-    G --> Pay[payment-service]
-  end
+    prom -.-> graf
+    graf --- gateway
 
-  subgraph Messaging
-    K[(Apache Kafka)]
-  end
-  K <-->|event-driven| Auth
-  K <-->|event-driven| Ticket
-  K <-->|event-driven| Event
-  K <-->|event-driven| Notify
-  K <-->|event-driven| Gid
-  K <-->|event-driven| Search
-  K <-->|event-driven| Rec
-  K <-->|event-driven| Pay
+    subgraph "Kubernetes Cluster"
+        direction TB
+        auth[auth-service]
+        event[event-service]
+        ticket[ticketing-service]
+        notify[notification-service]
+        gid[gid-service]
+        search[search-service]
+        rec[recommendation-service]
+        pay[payment-service]
+    end
+
+    gateway -- "gRPC / REST" --> auth
+    gateway --> event
+    gateway --> ticket
+    gateway --> notify
+    gateway --> gid
+    gateway --> search
+    gateway --> rec
+    gateway --> pay
+
+    kafka[(Apache Kafka)]
+    kafka <-- "event-driven" --> auth
+    kafka <-- "event-driven" --> event
+    kafka <-- "event-driven" --> ticket
+    kafka <-- "event-driven" --> notify
+    kafka <-- "event-driven" --> gid
+    kafka <-- "event-driven" --> search
+    kafka <-- "event-driven" --> rec
+    kafka <-- "event-driven" --> pay
 ```
 
 ```mermaid
-@startuml
-!theme spacelab
+flowchart TB
+    kafka[(Apache Kafka)]
 
-' ─── Nodes ──────────────────────────────────────────────────────────────
-node "Mobile / Web\n(React • Flutter)" as Client
-node "NGINX\n(API Gateway)" as Nginx
-cloud "Prometheus" as Prom
-database "Grafana" as Graf
-cloud "Apache Kafka" as Kafka
+    authP[auth-service<br/>producer] --> kafka
+    eventP[event-service<br/>producer] --> kafka
+    ticketP[ticketing-service<br/>producer] --> kafka
+    notifyP[notification-service<br/>producer] --> kafka
+    gidP[gid-service<br/>producer] --> kafka
+    searchP[search-service<br/>producer] --> kafka
+    recP[recommendation-service<br/>producer] --> kafka
+    payP[payment-service<br/>producer] --> kafka
 
-package "Kubernetes Cluster" {
-  [auth-service] as Auth
-  [event-service] as Event
-  [ticketing-service] as Ticket
-  [notification-service] as Notify
-  [gid-service] as Gid
-  [search-service] as Search
-  [recommendation-svc] as Rec
-  [payment-service] as Pay
-}
-
-' ─── Edges ───────────────────────────────────────────────────────────────
-Client --> Nginx : HTTPS
-Nginx --> Auth    : gRPC / REST
-Nginx --> Event
-Nginx --> Ticket
-Nginx --> Notify
-Nginx --> Gid
-Nginx --> Search
-Nginx --> Rec
-Nginx --> Pay
-
-Prom ..> Graf : metrics ▶ dashboards
-Graf ..> Nginx : latency, 5xx
-Auth  --> Kafka
-Event --> Kafka
-Ticket --> Kafka
-Notify --> Kafka
-Gid   --> Kafka
-Search --> Kafka
-Rec   --> Kafka
-Pay   --> Kafka
-Kafka --> Auth
-Kafka --> Event
-Kafka --> Ticket
-Kafka --> Notify
-Kafka --> Gid
-Kafka --> Search
-Kafka --> Rec
-Kafka --> Pay
-@enduml
+    kafka --> authC[auth-service<br/>consumer]
+    kafka --> eventC[event-service<br/>consumer]
+    kafka --> ticketC[ticketing-service<br/>consumer]
+    kafka --> notifyC[notification-service<br/>consumer]
+    kafka --> gidC[gid-service<br/>consumer]
+    kafka --> searchC[search-service<br/>consumer]
+    kafka --> recC[recommendation-service<br/>consumer]
+    kafka --> payC[payment-service<br/>consumer]
 ```
