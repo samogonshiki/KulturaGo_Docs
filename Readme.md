@@ -205,34 +205,36 @@ objectKey = sha256(email + “:” + login + “:” + unixNano()) + “.jpg”
 ##### Загрузка аватара
 
 ```mermaid
-```mermaid
 sequenceDiagram
+    autonumber
     participant UI  as Frontend
     participant G   as NGINX
     participant A   as auth-service
-    participant S3  as S3 Bucket
     participant R   as Redis
     participant DB  as PostgreSQL
-    Note over UI: user clicks "Change avatar"
+    participant S3  as S3 Bucket
+    participant K   as Kafka
+
+    Note over UI: User clicks "Change avatar"
 
     UI->>G: GET /avatar/presign (JWT)
     G->>A: presign()
     A->>R: SET pending:{uid}=objectKey (EX 600)
     A->>A: generate presigned URL
     A->>G: {url, objectKey}
-    G->>UI: 200
+    G->>UI: 200 OK
 
-    UI->>S3: PUT url (file)
-    S3-->>UI: 200
+    UI->>S3: PUT file (presigned URL)
+    S3-->>UI: 200 OK
 
     UI->>G: PUT /profile {avatar: objectKey}
     G->>A: SaveProfile()
     A->>R: GET pending:{uid}
     A->>DB: UPDATE users SET avatar=objectKey
     A->>R: DEL pending:{uid}
-    A->>Kafka: user.updated
-    A->>G: 200
-    G->>UI: OK
+    A->>K: user.updated
+    A->>G: 200 OK
+    G->>UI: 200 OK
 ```
 
 ##### Как работает сам сервис
