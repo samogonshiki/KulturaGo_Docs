@@ -279,7 +279,7 @@ sequenceDiagram
     G->>Admin: OK
 ```
 
-### ticketing-service
+## Ticketing-service
 
 Бронирование мест, оформление заказов, получение билетов.
 
@@ -293,7 +293,6 @@ sequenceDiagram
 | POST | `/api/v1/tickets/cancel`             | Отменить заказ (если не оплачен) |
 | POST | `/internal/tickets/callback`         | Webhook платёжного провайдера    |
 
-### Request-flow
 
 ```mermaid
 sequenceDiagram
@@ -388,9 +387,9 @@ graph LR
 ```mermaid
 stateDiagram-v2
     [*] --> ColdStart
-    ColdStart --> Online : user.action
-    Online --> Nightly : cron 03:00
-    Nightly --> Online : model_retrain
+    ColdStart --> Online : user_action
+    Online --> Nightly  : cron_03_00
+    Nightly --> Online  : model_retrain
 ```
 
 ## Geo-service
@@ -444,16 +443,17 @@ sequenceDiagram
     participant DB
     participant Kafka
 
-    User->>NGINX: POST /reviews
-    NGINX->>UGC: CreateReview()
-    UGC->>Vision: SafeSearch(img)
+    User  ->> NGINX : POST /reviews
+    NGINX ->> UGC   : CreateReview()
+    UGC   ->> Vision: SafeSearch(img)
+
     alt Accept
-        UGC->>DB: INSERT review
-        UGC->>Kafka: ugc.created
-        UGC-->>User: 201 Created
+        UGC ->> DB   : INSERT review
+        UGC ->> Kafka: ugc.created
+        UGC -->> User: 201 Created
     else Reject
-        UGC-->>User: 422 Unacceptable image
-    endне
+        UGC -->> User: 422 Unacceptable image
+    end
 ```
 
 ## Gamification-service
