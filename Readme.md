@@ -1,11 +1,11 @@
 # Высокоуровневая архитектура
 
 ```mermaid
-flowchart LR
-    client[Mobile / Web<br/>React / Flutter]
-    gateway[NGINX<br/>(API Gateway)]
+graph LR
+    client["Mobile / Web<br>React / Flutter"]
+    gateway["NGINX / API Gateway"]
 
-    client --> gateway
+    client -->|HTTPS| gateway
 
     prom[Prometheus]
     graf[Grafana]
@@ -34,7 +34,7 @@ flowchart LR
     gateway --> rec
     gateway --> pay
 
-    kafka[(Apache Kafka)]
+    kafka["Apache Kafka"]
 
     auth   --> kafka
     event  --> kafka
