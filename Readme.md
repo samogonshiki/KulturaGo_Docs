@@ -2,10 +2,10 @@
 
 ```mermaid
 flowchart LR
-    client[Mobile / Web<br/>React · Flutter]
+    client[Mobile / Web<br/>React / Flutter]
     gateway[NGINX<br/>(API Gateway)]
 
-    client -- HTTPS --> gateway
+    client --> gateway
 
     prom[Prometheus]
     graf[Grafana]
@@ -25,7 +25,7 @@ flowchart LR
         pay[payment-service]
     end
 
-    gateway -- "gRPC / REST" --> auth
+    gateway --> auth
     gateway --> event
     gateway --> ticket
     gateway --> notify
@@ -35,14 +35,24 @@ flowchart LR
     gateway --> pay
 
     kafka[(Apache Kafka)]
-    kafka <-- "event-driven" --> auth
-    kafka <-- "event-driven" --> event
-    kafka <-- "event-driven" --> ticket
-    kafka <-- "event-driven" --> notify
-    kafka <-- "event-driven" --> gid
-    kafka <-- "event-driven" --> search
-    kafka <-- "event-driven" --> rec
-    kafka <-- "event-driven" --> pay
+
+    auth   --> kafka
+    event  --> kafka
+    ticket --> kafka
+    notify --> kafka
+    gid    --> kafka
+    search --> kafka
+    rec    --> kafka
+    pay    --> kafka
+
+    kafka --> auth
+    kafka --> event
+    kafka --> ticket
+    kafka --> notify
+    kafka --> gid
+    kafka --> search
+    kafka --> rec
+    kafka --> pay
 ```
 
 ```mermaid
