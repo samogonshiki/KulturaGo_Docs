@@ -1,4 +1,6 @@
-# KulturaGo
+# KulturaGo_Docs
+
+![intro](src/git-prev-png.png)
 
 ## Оглавление
 
@@ -9,8 +11,7 @@
 - [Потоки данных и основные сценарии](#потоки-данных-и-основные-сценарии)
 - [DevOps и Observability](#devops-и-observability)
 - [Безопасность](#безопасность)
-- [Дорожная карта](#дорожная-карта)
-- [Как запустить локально](#как-запустить-локально)
+- [Что дальше?](#Что-дальше?)
 - [Contributing](#contributing)
 - [Лицензия](#лицензия)
 
@@ -31,9 +32,6 @@
 ---
 
 ## Высокоуровневая архитектура
-
-
-
 
 ```mermaid
 graph LR
@@ -147,7 +145,7 @@ graph TD
 | analytics-pipeline     | ETL в ClickHouse                  | ✔︎* | —     | Kafka Connect           |
 
 
-### Дорожная карта
+### Что дальше?
 
 | Квартал | Milestone                                          |
 |---------|----------------------------------------------------|
@@ -159,83 +157,83 @@ graph TD
 
 ## Потоки данных и основные сценарии
 
-### Auth-service endpoints
-
-| HTTP  | Путь                           | Описание                                        | Токен      |
-|-------|--------------------------------|-------------------------------------------------|------------|
-| POST  | /api/v1/auth/signup            | Регистрация нового пользователя                 | —          |
-| POST  | /api/v1/auth/signin            | Логин, выдача access + refresh                  | —          |
-| POST  | /api/v1/auth/refresh           | Обновление access-токена по refresh             | refresh    |
-| POST  | /api/v1/auth/logout            | Инвалидация пары токенов                        | access     |
-| GET   | /api/v1/me                     | Короткая карточка «Я»                           | access     |
-| GET   | /api/v1/profile                | Полный профиль                                  | access     |
-| PUT   | /api/v1/profile                | Сохранение профиля                              | access     |
-| GET   | /api/v1/avatar/presign         | Presigned-URL для загрузки аватара в S3         | access     |
-
-
-| Шаг | Действие                                             | Компонент        | Примечания                                   |
-|-----|------------------------------------------------------|------------------|----------------------------------------------|
-| 1   | `GET /api/v1/profile` — получить текущие данные      | Frontend → Auth  | JWT `access` в заголовке                     |
-| 2   | `PUT /api/v1/profile` — отправить изменённые поля    | Frontend → Auth  | JSON-тело с ФИО/телефоном и другими полями   |
-| 3   | Валидация и `UPDATE users SET ...` в PostgreSQL      | auth-service     | Транзакция                                   |
-| 4   | Обновление `profile:{uid}` в Redis (TTL 15 мин)      | auth-service     |                                              |
-| 5   | Публикация события `user.updated` в Kafka            | auth-service     | Подписчики: notification, analytics          |
-| 6   | Ответ `200 OK` с новым профилем                      | Auth → Frontend  |                                              |
-
----
-
-### 2. Загрузка аватара в S3 через presigned URL
-
-| Шаг | Запрос / действие                            | Компонент                  | Описание                                                                                           |
-|-----|----------------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------|
-| 1   | `GET /api/v1/avatar/presign`                 | Frontend → Auth            | Требуется JWT `access`                                                                              |
-| 2   | Генерация `objectKey` + presigned-URL (PUT)  | auth-service               | `objectKey = sha256(email:login:ts).jpg`; TTL URL = 15 мин; сохранение `pending_avatar_key` в Redis |
-| 3   | `{url, objectKey, expires}` → клиенту        | Auth → Frontend            |                                                                                                     |
-| 4   | `PUT url` (загрузка файла)                   | Frontend → S3              | Заголовки `Content-Type`, `x-amz-acl: private`                                                      |
-| 5   | `PUT /api/v1/profile { "avatar": objectKey}` | Frontend → Auth            |                                                                                                     |
-| 6   | Проверка key в Redis → `UPDATE users.avatar` | auth-service               | Удаление `pending_avatar_key`; запись в Redis-кеш; событие `user.updated`                           |
-| 7   | Push/e-mail о смене аватара                  | notification-service       |                                                                                                     |
-
-**Формула ключа:**
-
-```
-objectKey = sha256(email + “:” + login + “:” + unixNano()) + “.jpg”
-```
-
-#### Загрузка аватара
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant UI  as Frontend
-    participant G   as NGINX
-    participant A   as auth-service
-    participant R   as Redis
-    participant DB  as PostgreSQL
-    participant S3  as S3 Bucket
-    participant K   as Kafka
-
-    Note over UI: User clicks "Change avatar"
-
-    UI->>G: GET /avatar/presign (JWT)
-    G->>A: presign()
-    A->>R: SET pending:{uid}=objectKey (EX 600)
-    A->>A: generate presigned URL
-    A->>G: {url, objectKey}
-    G->>UI: 200 OK
-
-    UI->>S3: PUT file (presigned URL)
-    S3-->>UI: 200 OK
-
-    UI->>G: PUT /profile {avatar: objectKey}
-    G->>A: SaveProfile()
-    A->>R: GET pending:{uid}
-    A->>DB: UPDATE users SET avatar=objectKey
-    A->>R: DEL pending:{uid}
-    A->>K: user.updated
-    A->>G: 200 OK
-    G->>UI: 200 OK
-```
+>[ !IMPORTANT]
+>### Auth-service endpoints
+>
+> | HTTP  | Путь                           | Описание                                        | Токен      |
+> |-------|--------------------------------|-------------------------------------------------|------------|
+> | POST  | /api/v1/auth/signup            | Регистрация нового пользователя                 | —          |
+> | POST  | /api/v1/auth/signin            | Логин, выдача access + refresh                  | —          |
+> | POST  | /api/v1/auth/refresh           | Обновление access-токена по refresh             | refresh    |
+> | POST  | /api/v1/auth/logout            | Инвалидация пары токенов                        | access     |
+> | GET   | /api/v1/me                     | Короткая карточка «Я»                           | access     |
+> | GET   | /api/v1/profile                | Полный профиль                                  | access     |
+> | PUT   | /api/v1/profile                | Сохранение профиля                              | access     |
+> | GET   | /api/v1/avatar/presign         | Presigned-URL для загрузки аватара в S3         | access     |
+>
+>
+>| Шаг | Действие                                             | Компонент        | Примечания                                   |
+>|-----|------------------------------------------------------|------------------|----------------------------------------------|
+>| 1   | `GET /api/v1/profile` — получить текущие данные      | Frontend → Auth  | JWT `access` в заголовке                     |
+>| 2   | `PUT /api/v1/profile` — отправить изменённые поля    | Frontend → Auth  | JSON-тело с ФИО/телефоном и другими полями   |
+>| 3   | Валидация и `UPDATE users SET ...` в PostgreSQL      | auth-service     | Транзакция                                   |
+>| 4   | Обновление `profile:{uid}` в Redis (TTL 15 мин)      | auth-service     |                                              |
+>| 5   | Публикация события `user.updated` в Kafka            | auth-service     | Подписчики: notification, analytics          |
+>| 6   | Ответ `200 OK` с новым профилем                      | Auth → Frontend  |                                              |
+>
+>
+>#### 2. Загрузка аватара в S3 через presigned URL
+>
+>| Шаг | Запрос / действие                            | Компонент                  | Описание                                                                                           |
+>|-----|----------------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------|
+>| 1   | `GET /api/v1/avatar/presign`                 | Frontend → Auth            | Требуется JWT `access`                                                                              |
+>| 2   | Генерация `objectKey` + presigned-URL (PUT)  | auth-service               | `objectKey = sha256(email:login:ts).jpg`; TTL URL = 15 мин; сохранение `pending_avatar_key` в Redis |
+>| 3   | `{url, objectKey, expires}` → клиенту        | Auth → Frontend            |                                                                                                     |
+>| 4   | `PUT url` (загрузка файла)                   | Frontend → S3              | Заголовки `Content-Type`, `x-amz-acl: private`                                                      |
+>| 5   | `PUT /api/v1/profile { "avatar": objectKey}` | Frontend → Auth            |                                                                                                     |
+>| 6   | Проверка key в Redis → `UPDATE users.avatar` | auth-service               | Удаление `pending_avatar_key`; запись в Redis-кеш; событие `user.updated`                           |
+>| 7   | Push/e-mail о смене аватара                  | notification-service       |                                                                                                     |
+>
+>**Формула ключа:**
+>
+>```
+>objectKey = sha256(email + “:” + login + “:” + unixNano()) + “.jpg”
+>```
+>
+>#### Загрузка аватара
+>
+>```mermaid
+>sequenceDiagram
+>    autonumber
+>    participant UI  as Frontend
+>    participant G   as NGINX
+>    participant A   as auth-service
+>    participant R   as Redis
+>    participant DB  as PostgreSQL
+>    participant S3  as S3 Bucket
+>    participant K   as Kafka
+>
+>    Note over UI: User clicks "Change avatar"
+>
+>    UI->>G: GET /avatar/presign (JWT)
+>    G->>A: presign()
+>    A->>R: SET pending:{uid}=objectKey (EX 600)
+>    A->>A: generate presigned URL
+>    A->>G: {url, objectKey}
+>    G->>UI: 200 OK
+>
+>   UI->>S3: PUT file (presigned URL)
+>    S3-->>UI: 200 OK
+>
+>    UI->>G: PUT /profile {avatar: objectKey}
+>    G->>A: SaveProfile()
+>    A->>R: GET pending:{uid}
+>    A->>DB: UPDATE users SET avatar=objectKey
+>    A->>R: DEL pending:{uid}
+>    A->>K: user.updated
+>    A->>G: 200 OK
+>    G->>UI: 200 OK
+>```
 
 #### Как работает сам сервис
 
@@ -255,7 +253,7 @@ sequenceDiagram
     G->>C: 200 OK
 ```
 
-#### Event-service endpoints
+### Event-service endpoints
 
 | HTTP  | Путь                     | Описание                                          | Доступ                |
 |-------|--------------------------|---------------------------------------------------|-----------------------|
