@@ -157,7 +157,7 @@ graph TD
 
 ## Потоки данных и основные сценарии
 
->[ !IMPORTANT]
+>[!IMPORTANT]
 >### Auth-service endpoints
 >
 > | HTTP  | Путь                           | Описание                                        | Токен      |
