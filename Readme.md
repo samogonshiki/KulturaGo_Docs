@@ -112,6 +112,8 @@ graph LR
 
 >[!IMPORTANT]
 >### **Auth-service**
+> 
+> > **Endpoints** в данном сервисе:
 >
 > | HTTP  | Путь                           | Описание                                        | Токен      |
 > |-------|--------------------------------|-------------------------------------------------|------------|
@@ -123,16 +125,6 @@ graph LR
 > | GET   | /api/v1/profile                | Полный профиль                                  | access     |
 > | PUT   | /api/v1/profile                | Сохранение профиля                              | access     |
 > | GET   | /api/v1/avatar/presign         | Presigned-URL для загрузки аватара в S3         | access     |
->
->
->| Шаг | Действие                                             | Компонент        | Примечания                                   |
->|-----|------------------------------------------------------|------------------|----------------------------------------------|
->| 1   | `GET /api/v1/profile` — получить текущие данные      | Frontend → Auth  | JWT `access` в заголовке                     |
->| 2   | `PUT /api/v1/profile` — отправить изменённые поля    | Frontend → Auth  | JSON-тело с ФИО/телефоном и другими полями   |
->| 3   | Валидация и `UPDATE users SET ...` в PostgreSQL      | auth-service     | Транзакция                                   |
->| 4   | Обновление `profile:{uid}` в Redis (TTL 15 мин)      | auth-service     |                                              |
->| 5   | Публикация события `user.updated` в Kafka            | auth-service     | Подписчики: notification, analytics          |
->| 6   | Ответ `200 OK` с новым профилем                      | Auth → Frontend  |                                              |
 >
 >
 >#### 2. Загрузка аватара в S3 через presigned URL
@@ -207,65 +199,70 @@ graph LR
 >```
 
 
-### Event-service endpoints
+>[!IMPORTANT]
+>### **Event-service**
+> 
+> **Endpoints** в данном сервисе:
+>
+>| HTTP  | Путь                     | Описание                                          | Доступ                |
+>|-------|--------------------------|---------------------------------------------------|-----------------------|
+>| GET   | /api/v1/events           | Список активных событий                           | Публичный             |
+>| GET   | /api/v1/events/{slug}    | Детальная карточка события                        | Публичный             |
+>| POST  | /api/v1/events           | Создать / обновить событие (админ-панель)         | VPN + JWT «admin»     |
+>
+> **UML сервиса**
+> 
+>```mermaid
+>sequenceDiagram
+>    participant Admin as Admin-UI
+>    participant G as NGINX
+>    participant E as event-service
+>    participant P as PostgreSQL
+>    participant K as Kafka
+>    Note over Admin: POST /events
+>    Admin->>G: JSON event
+>    G->>E: Create()
+>    E->>P: INSERT event
+>    E->>K: event.published
+>    E->>G: 201 Created
+>    G->>Admin: OK
+>```
 
-| HTTP  | Путь                     | Описание                                          | Доступ                |
-|-------|--------------------------|---------------------------------------------------|-----------------------|
-| GET   | /api/v1/events           | Список активных событий                           | Публичный             |
-| GET   | /api/v1/events/{slug}    | Детальная карточка события                        | Публичный             |
-| POST  | /api/v1/events           | Создать / обновить событие (админ-панель)         | VPN + JWT «admin»     |
-
-```mermaid
-sequenceDiagram
-    participant Admin as Admin-UI
-    participant G as NGINX
-    participant E as event-service
-    participant P as PostgreSQL
-    participant K as Kafka
-    Note over Admin: POST /events
-    Admin->>G: JSON event
-    G->>E: Create()
-    E->>P: INSERT event
-    E->>K: event.published
-    E->>G: 201 Created
-    G->>Admin: OK
-```
-
-## Ticketing-service
-
-Бронирование мест, оформление заказов, получение билетов.
-
-### Endpoints
-
-| HTTP | Путь                                 | Описание                         |
-|------|--------------------------------------|----------------------------------|
-| POST | `/api/v1/tickets/purchase`           | Создать заказ, резерв мест       |
-| GET  | `/api/v1/tickets/{id}`               | Детали заказа / билета           |
-| GET  | `/api/v1/tickets/{id}/qr`            | Скачать QR-код                   |
-| POST | `/api/v1/tickets/cancel`             | Отменить заказ (если не оплачен) |
-| POST | `/internal/tickets/callback`         | Webhook платёжного провайдера    |
-
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U   as User
-    participant G   as NGINX
-    participant T   as ticketing-service
-    participant P   as Provider
-    participant Pay as payment-service
-    participant K   as Kafka
-
-    U->>G: POST /tickets/purchase
-    G->>T: Purchase()
-    T->>P: reserveSeat()
-    P-->>T: seatId
-    T->>Pay: initPayment(orderId)
-    Pay-->>U: redirect to PSP
-    Pay->>T: webhook ✓
-    T->>K: ticket.paid
-```
-
+>[!IMPORTANT]
+>### **Ticketing-service**
+>
+> **Endpoints** в данном сервисе
+>
+>| HTTP | Путь                                 | Описание                         |
+>|------|--------------------------------------|----------------------------------|
+>| POST | `/api/v1/tickets/purchase`           | Создать заказ, резерв мест       |
+>| GET  | `/api/v1/tickets/{id}`               | Детали заказа / билета           |
+>| GET  | `/api/v1/tickets/{id}/qr`            | Скачать QR-код                   |
+>| POST | `/api/v1/tickets/cancel`             | Отменить заказ (если не оплачен) |
+>| POST | `/internal/tickets/callback`         | Webhook платёжного провайдера    |
+>
+>
+>```mermaid
+>sequenceDiagram
+>    autonumber
+>    participant U   as User
+>    participant G   as NGINX
+>    participant T   as ticketing-service
+>    participant P   as Provider
+>    participant Pay as payment-service
+>    participant K   as Kafka
+>
+>    U->>G: POST /tickets/purchase
+>    G->>T: Purchase()
+>    T->>P: reserveSeat()
+>    P-->>T: seatId
+>    T->>Pay: initPayment(orderId)
+>    Pay-->>U: redirect to PSP
+>    Pay->>T: webhook ✓
+>    T->>K: ticket.paid
+>```
+>
+>
 ## Gid-service
 
 
