@@ -2,22 +2,7 @@
 
 ![intro](src/git-prev-png.png)
 
-## Оглавление
-
-- [Ключевые возможности](#ключевые-возможности)
-- [Высокоуровневая архитектура](#высокоуровневая-архитектура)
-- [Стек и инфраструктура](#стек-и-инфраструктура)
-- [Каталог микросервисов](#каталог-микросервисов)
-- [Потоки данных и основные сценарии](#потоки-данных-и-основные-сценарии)
-- [DevOps и Observability](#devops-и-observability)
-- [Безопасность](#безопасность)
-- [Что дальше?](#Что-дальше?)
-- [Contributing](#contributing)
-- [Лицензия](#лицензия)
-
----
-
-## Ключевые возможности
+## Функционал приложения
 
 | Функция                | Что получает пользователь                                  |
 |------------------------|------------------------------------------------------------|
@@ -31,7 +16,7 @@
 
 ---
 
-## Высокоуровневая архитектура
+## UML самого приложения
 
 ```mermaid
 graph LR
@@ -88,77 +73,45 @@ graph LR
     kafka --> pay
 ```
 
-```mermaid
-graph TD
-    kafka["Apache Kafka"]
+>[!NOTE]
+>### Стэк технологий
+>
+>| Слой                | Технологии                | Назначение                           |
+>|---------------------|---------------------------|--------------------------------------|
+>| API-шлюз            | NGINX                     | TLS-termination, rate-limit          |
+>| Бизнес-логика       | Go 1.22                   | gRPC/REST-сервисы                    |
+>| ML-сервисы          | Python 3.12 + PyTorch     | TTS, рекомендации                    |
+>| Шина сообщений      | Apache Kafka 3.x          | Event-driven коммуникация            |
+>| Кэш / очереди       | Redis 7 Cluster           | Сессии, фоновые задачи               |
+>| База данных         | PostgreSQL 15 (+ PostGIS) | ACID-хранение, гео-запросы           |
+>| Объектное хранилище | S3 / MinIO                | Медиа-файлы, аватарки                |
+>| CI/CD               | GitHub Actions → Helm     | Канареечные и blue/green релизы      |
+>| Observability       | Prometheus, Loki, Tempo   | Метрики, логи, распределённые трейсы |
+>
+>
+>### Каталог микросервисов
+>
+>| Сервис                 | Назначение                        | БД  | Redis | Внешние интеграции      |
+>|------------------------|-----------------------------------|-----|-------|-------------------------|
+>| auth-service           | Аутентификация, профиль, аватарки | ✔︎  | ✔︎    | —                       |
+>| event-service          | CRUD событий, админ-панель        | ✔︎  | ✔︎    | —                       |
+>| ticketing-service      | Резервы и билеты                  | ✔︎  | ✔︎    | Kassir.ru, TicketsCloud |
+>| gid-service            | TTS-озвучка экскурсий             | —   | ✔︎    | WebRTC                  |
+>| notification-service   | Push / e-mail                     | ✔︎  | ✔︎    | FCM, APNs, SMTP         |
+>| search-service         | Полнотекстовый поиск              | —   | —     | Meilisearch / Elastic   |
+>| recommendation-service | ML-подборки                       | —   | ✔︎    | —                       |
+>| geo-service            | POI, ETA                          | ✔︎  | —     | OpenStreetMap           |
+>| payment-service        | PCI-DSS контур                    | ✔︎  | ✔︎    | CloudPayments           |
+>| ugc-service            | Отзывы, фото                      | ✔︎  | ✔︎    | Vision API              |
+>| gamification-service   | Бейджи, XP                        | —   | ✔︎    | —                       |
+>| marketing-service      | A/B-кампании                      | ✔︎  | ✔︎    | Amplitude               |
+>| analytics-pipeline     | ETL в ClickHouse                  | ✔︎* | —     | Kafka Connect           |
+>
 
-    authP["auth-service producer"] --> kafka
-    eventP["event-service producer"] --> kafka
-    ticketP["ticketing-service producer"] --> kafka
-    notifyP["notification-service producer"] --> kafka
-    gidP["gid-service producer"] --> kafka
-    searchP["search-service producer"] --> kafka
-    recP["recommendation-service producer"] --> kafka
-    payP["payment-service producer"] --> kafka
-
-    kafka --> authC["auth-service consumer"]
-    kafka --> eventC["event-service consumer"]
-    kafka --> ticketC["ticketing-service consumer"]
-    kafka --> notifyC["notification-service consumer"]
-    kafka --> gidC["gid-service consumer"]
-    kafka --> searchC["search-service consumer"]
-    kafka --> recC["recommendation-service consumer"]
-    kafka --> payC["payment-service consumer"]
-```
-
-### Стек и инфраструктура
-
-| Слой                | Технологии                | Назначение                           |
-|---------------------|---------------------------|--------------------------------------|
-| API-шлюз            | NGINX                     | TLS-termination, rate-limit          |
-| Бизнес-логика       | Go 1.22                   | gRPC/REST-сервисы                    |
-| ML-сервисы          | Python 3.12 + PyTorch     | TTS, рекомендации                    |
-| Шина сообщений      | Apache Kafka 3.x          | Event-driven коммуникация            |
-| Кэш / очереди       | Redis 7 Cluster           | Сессии, фоновые задачи               |
-| База данных         | PostgreSQL 15 (+ PostGIS) | ACID-хранение, гео-запросы           |
-| Объектное хранилище | S3 / MinIO                | Медиа-файлы, аватарки                |
-| CI/CD               | GitHub Actions → Helm     | Канареечные и blue/green релизы      |
-| Observability       | Prometheus, Loki, Tempo   | Метрики, логи, распределённые трейсы |
-
-
-### Каталог микросервисов
-
-| Сервис                 | Назначение                        | БД  | Redis | Внешние интеграции      |
-|------------------------|-----------------------------------|-----|-------|-------------------------|
-| auth-service           | Аутентификация, профиль, аватарки | ✔︎  | ✔︎    | —                       |
-| event-service          | CRUD событий, админ-панель        | ✔︎  | ✔︎    | —                       |
-| ticketing-service      | Резервы и билеты                  | ✔︎  | ✔︎    | Kassir.ru, TicketsCloud |
-| gid-service            | TTS-озвучка экскурсий             | —   | ✔︎    | WebRTC                  |
-| notification-service   | Push / e-mail                     | ✔︎  | ✔︎    | FCM, APNs, SMTP         |
-| search-service         | Полнотекстовый поиск              | —   | —     | Meilisearch / Elastic   |
-| recommendation-service | ML-подборки                       | —   | ✔︎    | —                       |
-| geo-service            | POI, ETA                          | ✔︎  | —     | OpenStreetMap           |
-| payment-service        | PCI-DSS контур                    | ✔︎  | ✔︎    | CloudPayments           |
-| ugc-service            | Отзывы, фото                      | ✔︎  | ✔︎    | Vision API              |
-| gamification-service   | Бейджи, XP                        | —   | ✔︎    | —                       |
-| marketing-service      | A/B-кампании                      | ✔︎  | ✔︎    | Amplitude               |
-| analytics-pipeline     | ETL в ClickHouse                  | ✔︎* | —     | Kafka Connect           |
-
-
-### Что дальше?
-
-| Квартал | Milestone                                          |
-|---------|----------------------------------------------------|
-| Q1      | MVP: auth, event, ticketing, payment               |
-| Q2      | gid-service, notification, search                  |
-| Q3      | recommendation, gamification, UGC                  |
-| Q4      | marketing-service, офлайн-режим мобильного клиента |
-
-
-## Потоки данных и основные сценарии
+## Описание сервисов
 
 >[!IMPORTANT]
->### Auth-service endpoints
+>### **Auth-service**
 >
 > | HTTP  | Путь                           | Описание                                        | Токен      |
 > |-------|--------------------------------|-------------------------------------------------|------------|
@@ -200,7 +153,7 @@ graph TD
 >objectKey = sha256(email + “:” + login + “:” + unixNano()) + “.jpg”
 >```
 >
->#### Загрузка аватара
+>#### Как именно происходит загрука аватарок из Web-App в S3-storage
 >
 >```mermaid
 >sequenceDiagram
@@ -234,24 +187,25 @@ graph TD
 >    A->>G: 200 OK
 >    G->>UI: 200 OK
 >```
+>
+>#### UML Auth-service
+>
+>```mermaid
+>sequenceDiagram
+>    participant C as Client
+>    participant G as NGINX
+>    participant A as auth-service
+>    participant R as Redis
+>    participant P as PostgreSQL
+>    Note over C: POST /auth/signin
+>    C->>G: credentials
+>    G->>A: SignIn()
+>    A->>P: verify user
+>    A->>R: SET session (TTL 15m)
+>    A->>G: access + refresh
+>    G->>C: 200 OK
+>```
 
-#### Как работает сам сервис
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant G as NGINX
-    participant A as auth-service
-    participant R as Redis
-    participant P as PostgreSQL
-    Note over C: POST /auth/signin
-    C->>G: credentials
-    G->>A: SignIn()
-    A->>P: verify user
-    A->>R: SET session (TTL 15m)
-    A->>G: access + refresh
-    G->>C: 200 OK
-```
 
 ### Event-service endpoints
 
